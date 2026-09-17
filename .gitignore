@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# whisper.cpp build + models (large, not for git)
+tools/whisper.cpp/
+models/whisper/
+models/*.bin
+!models/.gitkeep
+
+# temporary media
+tmp/*
+!tmp/.gitkeep
+*.wav
+*.mp3
+*.m4a
+*.webm
+*.part
+
+.DS_Store

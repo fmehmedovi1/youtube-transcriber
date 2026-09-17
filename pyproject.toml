@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project]
+name = "youtube-transcriber"
+version = "0.1.0"
+description = "Local YouTube transcript tool: free captions first, local whisper.cpp fallback. $0 API cost."
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit>=1.38",
+    "youtube-transcript-api>=0.6.2",
+    "yt-dlp>=2024.8.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
