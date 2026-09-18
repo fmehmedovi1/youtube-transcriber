@@ -16,23 +16,48 @@ from pathlib import Path
 from .config import CONFIG, Config
 from .errors import LocalTranscriptionError, WhisperModelMissingError, WhisperNotFoundError
 from .models import SOURCE_LOCAL_WHISPER, TranscriptResult, TranscriptSegment
+from .runtime import app_dir, exe_suffix
 
 logger = logging.getLogger(__name__)
 
-# Accepted whisper.cpp CLI binary names, current name first.
+# Accepted whisper.cpp CLI binary names, current name first (the older name
+# `main` was renamed upstream, but old local builds may still have it).
 _CANDIDATE_BINARY_NAMES = ["whisper-cli", "main"]
 
 
-def find_whisper_binary(config: Config = CONFIG) -> Path | None:
-    """Return the whisper.cpp CLI binary path if it exists, else None."""
+def get_whisper_executable(config: Config = CONFIG) -> Path | None:
+    """Locate the whisper.cpp CLI binary in dev or packaged mode.
+
+    Search order:
+    1. The configured path (env override, or the dev-build / packaged
+       default computed in config.py).
+    2. Candidate binary names next to the configured path (handles the
+       `main` -> `whisper-cli` rename).
+    3. A `bin/` directory next to the running executable — where a
+       packaged Windows build ships `whisper-cli.exe` alongside the app.
+    """
     configured = config.whisper_cpp_path
     if configured.exists():
         return configured
+    suffix = exe_suffix()
     for name in _CANDIDATE_BINARY_NAMES:
-        candidate = configured.parent / name
-        if candidate.exists():
-            return candidate
+        for candidate_name in {f"{name}{suffix}", name}:
+            candidate = configured.parent / candidate_name
+            if candidate.exists():
+                return candidate
+
+    bundled_bin = app_dir() / "bin"
+    for name in _CANDIDATE_BINARY_NAMES:
+        for candidate_name in {f"{name}{suffix}", name}:
+            candidate = bundled_bin / candidate_name
+            if candidate.exists():
+                return candidate
     return None
+
+
+# Back-compat alias — same lookup, kept for callers written before the
+# centralized name.
+find_whisper_binary = get_whisper_executable
 
 
 def find_model(model_name: str, config: Config = CONFIG) -> Path | None:
@@ -50,7 +75,7 @@ class LocalWhisperTranscriber:
     def check_ready(self) -> None:
         """Raise a clear, actionable error if whisper.cpp or its model
         aren't set up yet. Called before any transcription attempt."""
-        if find_whisper_binary(self.config) is None:
+        if get_whisper_executable(self.config) is None:
             raise WhisperNotFoundError(
                 f"no whisper.cpp binary found at {self.config.whisper_cpp_path} "
                 "or nearby. Run scripts/setup_whisper.sh"
@@ -66,7 +91,7 @@ class LocalWhisperTranscriber:
         with source=local_whisper.
         """
         self.check_ready()
-        binary = find_whisper_binary(self.config)
+        binary = get_whisper_executable(self.config)
         model = find_model(self.model_name, self.config)
         assert binary is not None and model is not None  # guaranteed by check_ready
 

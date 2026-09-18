@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 import streamlit as st
 
@@ -10,9 +11,14 @@ from src.youtube_transcriber.audio import check_ffmpeg_installed
 from src.youtube_transcriber.config import CONFIG, PREFERRED_LANGUAGES, WHISPER_MODELS
 from src.youtube_transcriber.errors import TranscriberError
 from src.youtube_transcriber.formatting import format_timestamp_hhmmss
+from src.youtube_transcriber.model_manager import (
+    approximate_size_mb,
+    download_model,
+    model_is_available,
+)
 from src.youtube_transcriber.models import SOURCE_LOCAL_WHISPER, TranscriptResult
 from src.youtube_transcriber.transcript import TranscriptPipeline
-from src.youtube_transcriber.whisper_local import find_model, find_whisper_binary
+from src.youtube_transcriber.whisper_local import find_model, get_whisper_executable
 from src.youtube_transcriber.youtube import extract_video_id
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -42,6 +48,33 @@ with col2:
     whisper_model = st.selectbox("Local Whisper model (fallback only)", WHISPER_MODELS, index=default_model_index)
 
 include_timestamps = st.checkbox("Include timestamps", value=False)
+
+if not model_is_available(whisper_model):
+    size_mb = approximate_size_mb(whisper_model)
+    size_note = f" (~{size_mb} MB)" if size_mb else ""
+    with st.expander(f"Local Whisper model '{whisper_model}' is not installed", expanded=False):
+        st.write(
+            "This model is only needed as a fallback, for videos that don't "
+            "already have YouTube captions. If captions are available, "
+            "nothing below is required."
+        )
+        st.write(f"**Model:** {whisper_model} (multilingual)  \n**Cost:** $0 — downloaded once, stored locally, reused for every future transcript{size_note}.")
+        if st.button(f"Download model ({whisper_model})", key=f"download_{whisper_model}"):
+            progress_bar = st.progress(0.0)
+            status_text = st.empty()
+
+            def on_progress(downloaded: int, total: int) -> None:
+                fraction = (downloaded / total) if total else 0.0
+                progress_bar.progress(min(fraction, 1.0))
+                status_text.write(f"{downloaded / 1_048_576:.0f} MB downloaded...")
+
+            try:
+                download_model(whisper_model, on_progress=on_progress)
+            except TranscriberError as exc:
+                st.error(exc.user_message)
+            else:
+                st.success("Whisper model installed successfully.")
+                st.rerun()
 
 generate_clicked = st.button(
     "Generate Transcript", type="primary", disabled=st.session_state.processing
@@ -141,12 +174,16 @@ if result is not None:
 
 with st.expander("Local setup status"):
     ffmpeg_ok = check_ffmpeg_installed()
-    whisper_ok = find_whisper_binary() is not None
+    whisper_ok = get_whisper_executable() is not None
     model_ok = find_model(whisper_model) is not None
-    st.write(f"ffmpeg installed: {'yes' if ffmpeg_ok else 'no — brew install ffmpeg'}")
-    st.write(f"whisper.cpp built: {'yes' if whisper_ok else 'no — run scripts/setup_whisper.sh'}")
-    st.write(f"Model '{whisper_model}' present: {'yes' if model_ok else 'no — run scripts/setup_whisper.sh'}")
+    setup_hint = "scripts\\setup_whisper.ps1" if sys.platform == "win32" else "scripts/setup_whisper.sh"
+    st.write(f"ffmpeg installed: {'yes' if ffmpeg_ok else 'no — see ' + setup_hint}")
+    st.write(f"whisper.cpp built: {'yes' if whisper_ok else 'no — run ' + setup_hint}")
+    st.write(f"Model '{whisper_model}' present: {'yes' if model_ok else 'no — use the download button above'}")
+    st.divider()
+    st.write("**Transcription engine:** Local Whisper (fallback only) — **API cost:** $0")
     st.caption(
         "These are only needed as a fallback when a video has no YouTube captions. "
-        "Audio used for Whisper transcription is processed locally on this computer."
+        "Internet access is used to reach YouTube for captions/audio; Whisper itself "
+        "runs entirely on this computer, and no paid transcription service is ever contacted."
     )

@@ -16,6 +16,37 @@ Paste a YouTube URL, get a transcript. No paid API involved, ever.
 Captions are always tried first. Audio is only downloaded when captions
 are genuinely unavailable.
 
+## Download Windows App
+
+Don't want to run Python? Download the packaged Windows build from
+[GitHub Releases](../../releases):
+
+1. Download `YouTubeTranscriber-Windows-x64.zip`.
+2. Extract the ZIP.
+3. Open `YouTubeTranscriber.exe`.
+4. Your browser opens automatically at `http://127.0.0.1:8501`.
+5. Paste a YouTube URL and generate a transcript.
+
+No Python, no `pip install`, no `streamlit run` — the executable starts
+the app internally and only listens on `127.0.0.1` (never your network).
+
+If this repository has no published release yet, the
+[`build-windows`](.github/workflows/build-windows.yml) GitHub Actions
+workflow builds the ZIP on every push to `main` and on every tagged
+release (`v1.0.0` etc.) — check the Actions tab for the latest build
+artifact rather than expecting a link here in advance.
+
+**Windows SmartScreen**: this executable is unsigned (no commercial
+code-signing certificate was purchased, to keep distribution at $0), so
+Windows may show a SmartScreen warning on first launch. See
+[Troubleshooting](#troubleshooting).
+
+**Local Whisper fallback on Windows**: only needed for videos with no
+YouTube captions. The packaged build does not bundle `ffmpeg`/`whisper.cpp`
+(see [Native dependencies on Windows](#native-dependencies-on-windows));
+run `scripts\setup_whisper.ps1` from a source checkout to set them up, or
+use the in-app "Download model" button once they're available on PATH.
+
 ## Why it costs $0
 
 This app never calls OpenAI, Anthropic, Google Cloud Speech-to-Text, AWS
@@ -117,6 +148,104 @@ API cost per transcription: $0
   this app: your internet connection, electricity, and the wear on your
   own compute. There is no metered, per-request charge.
 
+This holds for the packaged Windows build too: it's the same code, running
+locally, downloading nothing beyond the (free, open-weight) Whisper model
+and its own dependencies. `windows-latest` GitHub Actions runners and
+GitHub Releases are both part of GitHub's free tier for public
+repositories — no paid CI minutes or paid GitHub feature is required.
+
+## Developer mode vs packaged desktop mode
+
+Two ways to run the exact same application logic — nothing under
+`src/youtube_transcriber/` is duplicated between them:
+
+```text
+Developer mode        .venv/bin/streamlit run app.py   (this repo, any OS)
+Packaged desktop mode  YouTubeTranscriber.exe            (Windows, no Python needed)
+```
+
+The packaged mode wraps the same `app.py` with a small launcher
+(`src/youtube_transcriber/launcher.py`) that starts Streamlit in-process,
+binds `127.0.0.1` only, waits for the server to become ready, opens the
+default browser exactly once, and enforces a single running instance via a
+PID+port lock file in the OS user-data directory. See `runtime.py` for the
+dev-vs-packaged path resolution both modes share.
+
+## Building the Windows executable
+
+**Windows `.exe` builds must be produced on Windows** — PyInstaller does
+not cross-compile, so a macOS/Linux machine cannot build or validate the
+real `.exe`. This repository's own development happened on macOS; the
+Windows build was built and verified on GitHub's `windows-latest` CI
+runner, not claimed as locally tested on macOS.
+
+Locally, on a Windows machine:
+
+```powershell
+.\scripts\build_windows.ps1
+```
+
+This creates/reuses a venv, installs `.[dev,build]` (PyInstaller included),
+runs the test suite, builds via `YouTubeTranscriber.spec`, and produces
+`dist\YouTubeTranscriber-Windows-x64.zip`.
+
+Packaging notes:
+
+- **onedir, not onefile** (`YouTubeTranscriber.spec`). A onefile build
+  re-extracts its whole payload to a fresh temp directory on every launch,
+  which is slower and unsuitable for shipping native binaries like
+  `ffmpeg.exe`/`whisper-cli.exe` at a stable path. A folder next to the
+  `.exe` is simple to ZIP and reliable across runs.
+- **Two executables** are produced: `YouTubeTranscriber.exe` (no console,
+  for normal users) and `YouTubeTranscriber-Debug.exe` (same app, visible
+  console with log output, for troubleshooting).
+- No UPX, no obfuscation, no packers — standard, transparent PyInstaller
+  output, to avoid tripping antivirus heuristics.
+
+### Native dependencies on Windows
+
+`ffmpeg` and `whisper.cpp` are only needed for the Whisper fallback path
+(videos without YouTube captions) — the primary caption path needs neither.
+This project ships a **first-run setup script** (`scripts\setup_whisper.ps1`,
+mirroring the existing macOS/Linux `scripts/setup_whisper.sh`) rather than
+bundling prebuilt `ffmpeg.exe`/`whisper-cli.exe` inside the release ZIP.
+Reasoning: reliably cross-building whisper.cpp for Windows and legally
+redistributing a static ffmpeg build both need real validation on a
+Windows machine, which risks shipping a broken or unverified binary under
+time pressure; the setup script instead reuses the exact same
+clone-build-download logic already proven on macOS/Linux. The app never
+crashes when these are missing — `FFmpegNotFoundError` /
+`WhisperNotFoundError` show a clear, actionable message pointing at the
+setup script, exactly as they do today outside packaging. `bin/ffmpeg.exe`
+/ `bin/whisper-cli.exe` placed next to the packaged `.exe` are picked up
+automatically if present (see `get_ffmpeg_executable()` /
+`get_whisper_executable()`), so bundling can be added later without any
+code changes if a validated Windows binary source is established.
+
+### Whisper models
+
+Never bundled into the executable (multiple models would make the release
+huge for no benefit — most transcripts never need Whisper at all). The app
+downloads the selected model on first use, into the OS user-data
+directory, and reuses it on every future run:
+
+```text
+%LOCALAPPDATA%\YouTubeTranscriber\models\ggml-<model>.bin   (Windows, packaged)
+~/Library/Application Support/YouTubeTranscriber/models/…   (macOS, packaged)
+models/whisper/ggml-<model>.bin                              (dev checkout, any OS)
+```
+
+### CI: automatic builds and releases
+
+- [`build-windows.yml`](.github/workflows/build-windows.yml) runs on every
+  push/PR to `main`: installs dependencies, runs tests, builds with
+  PyInstaller, verifies `YouTubeTranscriber.exe` (and the debug variant)
+  actually exist, zips the result, and uploads it as a GitHub Actions
+  artifact. The build fails if the `.exe` is missing.
+- Pushing a tag like `v1.0.0` additionally publishes
+  `YouTubeTranscriber-Windows-x64.zip` to a GitHub Release for that tag —
+  no paid GitHub feature involved, just the built-in `GITHUB_TOKEN`.
+
 ## Architecture
 
 ```text
@@ -141,19 +270,38 @@ src/youtube_transcriber/
   formatting.py                Plain text / timestamped text / SRT generation
   config.py                   Env-based configuration, no API keys
   errors.py                   User-facing error categories
+  model_manager.py            On-demand Whisper model download (packaged mode)
+  runtime.py                  Centralized dev-vs-packaged path resolution
+  launcher.py                 Executable entry point: starts Streamlit, opens browser
+packaging/entry_point.py      PyInstaller entry script (imports launcher.run)
+YouTubeTranscriber.spec       PyInstaller build spec
+scripts/build_windows.ps1     One-command Windows build -> dist ZIP
+scripts/setup_whisper.ps1     Windows whisper.cpp/model setup (mirrors the .sh version)
+.github/workflows/build-windows.yml   CI build + release-on-tag
 ```
 
 ## Troubleshooting
 
-**ffmpeg missing** — `brew install ffmpeg` (macOS) or your distro's
-package manager on Linux. The app detects this up front and won't crash
-with a raw subprocess error.
+**Windows SmartScreen warning on first launch** — `YouTubeTranscriber.exe`
+is an unsigned, self-built executable. This project does not purchase a
+commercial code-signing certificate, in order to preserve the $0
+distribution requirement. If SmartScreen appears, click "More info" ->
+"Run anyway". This is standard for unsigned open-source Windows binaries
+and is not a sign the app was tampered with — verify by building it
+yourself from source with `scripts\build_windows.ps1` if in doubt.
 
-**whisper.cpp missing / not built** — run `./scripts/setup_whisper.sh`.
-The app checks for the binary before trying to use it and tells you what
-to run.
+**ffmpeg missing** — `brew install ffmpeg` (macOS), your distro's package
+manager on Linux, or `scripts\setup_whisper.ps1` / `winget install ffmpeg`
+on Windows. The app detects this up front and won't crash with a raw
+subprocess error.
 
-**Model missing** — same fix: `./scripts/setup_whisper.sh <model>`. The
+**whisper.cpp missing / not built** — run `./scripts/setup_whisper.sh`
+(macOS/Linux) or `scripts\setup_whisper.ps1` (Windows). The app checks for
+the binary before trying to use it and tells you what to run.
+
+**Model missing** — use the in-app "Download model" button (downloads once
+into the OS user-data directory and is reused forever after), or run the
+same setup script with a model name. The
 app won't auto-download a model on every startup; it just tells you it's
 missing.
 
