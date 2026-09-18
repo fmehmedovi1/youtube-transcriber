@@ -49,6 +49,9 @@ if (-not (Test-Path $ExePath)) {
     exit 1
 }
 
+Write-Host "==> Adding launcher script to the distribution"
+Copy-Item "packaging\Run YouTubeTranscriber.bat" -Destination $DistDir
+
 Write-Host "==> Adding README.txt to the distribution"
 @"
 YouTubeTranscriber - Windows

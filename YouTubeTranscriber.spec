@@ -23,13 +23,18 @@ is simple to ZIP, simple to extract, and reliable across runs.
 Two entry points share the same Analysis: YouTubeTranscriber.exe (no
 console window, for normal users) and YouTubeTranscriber-Debug.exe (same
 app, with a visible console showing log output, for troubleshooting).
+
+packaging/Run YouTubeTranscriber.bat is deliberately NOT listed in `datas`
+below: PyInstaller 6's onedir layout places `datas` entries inside
+_internal/, not next to the .exe, so the build scripts
+(scripts/build_windows.ps1, .github/workflows/build-windows.yml) copy it
+into the dist folder root themselves after this spec runs.
 """
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 datas = [
     ("app.py", "."),
-    ("packaging/Run YouTubeTranscriber.bat", "."),
 ]
 binaries = []
 hiddenimports = []

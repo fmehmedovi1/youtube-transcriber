@@ -32,6 +32,10 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller YouTubeTranscriber.spec --noconfirm
 
+      - name: Add launcher script to the distribution
+        shell: pwsh
+        run: Copy-Item "packaging\Run YouTubeTranscriber.bat" -Destination "dist\YouTubeTranscriber"
+
       - name: Verify expected executable exists
         shell: bash
         run: |
