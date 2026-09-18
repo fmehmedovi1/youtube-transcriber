@@ -49,11 +49,17 @@ if (-not (Test-Path $ExePath)) {
     exit 1
 }
 
+Write-Host "==> Adding launcher script to the distribution"
+Copy-Item "packaging\Run YouTubeTranscriber.bat" -Destination $DistDir
+
 Write-Host "==> Adding README.txt to the distribution"
 @"
 YouTubeTranscriber - Windows
 
-Double-click YouTubeTranscriber.exe to start. Your browser opens
+IMPORTANT: extract this whole ZIP first (right-click -> Extract All).
+Do not run files straight from the ZIP preview window.
+
+Double-click "Run YouTubeTranscriber.bat" to start. Your browser opens
 automatically at http://127.0.0.1:8501 once the app is ready.
 
 Local Whisper (only needed for videos with no YouTube captions):
