@@ -19,3 +19,11 @@ tmp/*
 *.part
 
 .DS_Store
+
+# PyInstaller build output (never commit built executables)
+build/
+dist/
+*.exe
+*.zip
+logs/
+

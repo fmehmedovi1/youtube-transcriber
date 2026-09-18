@@ -7,6 +7,14 @@ shown to the user directly.
 
 from __future__ import annotations
 
+import sys
+
+
+def _setup_hint() -> str:
+    if sys.platform == "win32":
+        return "run scripts\\setup_whisper.ps1"
+    return "run scripts/setup_whisper.sh"
+
 
 class TranscriberError(Exception):
     """Base class for all errors the UI knows how to render nicely."""
@@ -45,23 +53,30 @@ class NoCaptionsAvailableError(TranscriberError):
 
 
 class FFmpegNotFoundError(TranscriberError):
-    user_message = (
-        "ffmpeg is not installed. On macOS run: brew install ffmpeg"
-    )
+    def __init__(self, detail: str | None = None):
+        if sys.platform == "win32":
+            self.user_message = (
+                "ffmpeg is not installed. Run scripts\\setup_whisper.ps1, "
+                "or install it yourself and make sure it's on PATH."
+            )
+        else:
+            self.user_message = "ffmpeg is not installed. On macOS run: brew install ffmpeg"
+        super().__init__(detail)
 
 
 class WhisperNotFoundError(TranscriberError):
-    user_message = (
-        "whisper.cpp is not installed/built. Run scripts/setup_whisper.sh "
-        "to set it up locally."
-    )
+    def __init__(self, detail: str | None = None):
+        self.user_message = f"whisper.cpp is not installed/built. {_setup_hint()} to set it up locally."
+        super().__init__(detail)
 
 
 class WhisperModelMissingError(TranscriberError):
-    user_message = (
-        "The configured local Whisper model is missing. Run "
-        "scripts/setup_whisper.sh to download it."
-    )
+    def __init__(self, detail: str | None = None):
+        self.user_message = (
+            "The local Whisper model isn't downloaded yet. Use the "
+            "\"Download model\" button below, or " + _setup_hint() + "."
+        )
+        super().__init__(detail)
 
 
 class AudioDownloadError(TranscriberError):

@@ -15,19 +15,30 @@ import yt_dlp
 
 from .errors import AudioDownloadError, FFmpegNotFoundError, VideoUnavailableError
 from .models import VideoMetadata
+from .runtime import app_dir, exe_suffix
 
 logger = logging.getLogger(__name__)
 
 WHISPER_SAMPLE_RATE = 16000
 
 
+def get_ffmpeg_executable() -> Path | None:
+    """Locate ffmpeg: a `bin/ffmpeg.exe` shipped next to a packaged build
+    first, then PATH (the normal dev-mode / brew-installed case)."""
+    bundled = app_dir() / "bin" / f"ffmpeg{exe_suffix()}"
+    if bundled.exists():
+        return bundled
+    on_path = shutil.which("ffmpeg")
+    return Path(on_path) if on_path else None
+
+
 def check_ffmpeg_installed() -> bool:
-    return shutil.which("ffmpeg") is not None
+    return get_ffmpeg_executable() is not None
 
 
 def require_ffmpeg() -> None:
     if not check_ffmpeg_installed():
-        raise FFmpegNotFoundError("ffmpeg not found on PATH")
+        raise FFmpegNotFoundError("ffmpeg not found on PATH or bundled bin/")
 
 
 class YouTubeAudioProvider:
@@ -96,8 +107,10 @@ def convert_to_whisper_wav(source: Path, dest: Path) -> Path:
     """Convert an audio file to 16kHz mono 16-bit PCM WAV, as whisper.cpp needs."""
     require_ffmpeg()
     dest.parent.mkdir(parents=True, exist_ok=True)
+    ffmpeg_bin = get_ffmpeg_executable()
+    assert ffmpeg_bin is not None  # guaranteed by require_ffmpeg above
     cmd = [
-        "ffmpeg",
+        str(ffmpeg_bin),
         "-y",
         "-i",
         str(source),
