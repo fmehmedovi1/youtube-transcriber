@@ -25,7 +25,7 @@ console window, for normal users) and YouTubeTranscriber-Debug.exe (same
 app, with a visible console showing log output, for troubleshooting).
 """
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 datas = [
     ("app.py", "."),
@@ -38,6 +38,14 @@ for pkg in ("streamlit",):
     datas += pkg_datas
     binaries += pkg_binaries
     hiddenimports += pkg_hiddenimports
+
+# app.py (the Streamlit UI script) is shipped as a plain data file above and
+# run via streamlit's bootstrap, not imported by entry_point.py — so
+# PyInstaller's static analysis never sees its `from src.youtube_transcriber
+# import ...` statements. Force the whole package in explicitly, or modules
+# like audio.py/transcript.py/model_manager.py silently go missing from the
+# build (ModuleNotFoundError at runtime, tests never catch it).
+hiddenimports += collect_submodules("src.youtube_transcriber")
 
 a = Analysis(
     ["packaging/entry_point.py"],
