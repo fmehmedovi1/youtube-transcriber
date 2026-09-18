@@ -22,14 +22,18 @@ logger = logging.getLogger(__name__)
 WHISPER_SAMPLE_RATE = 16000
 
 
-def get_ffmpeg_executable() -> Path | None:
+def get_ffmpeg_executable() -> Path | str | None:
     """Locate ffmpeg: a `bin/ffmpeg.exe` shipped next to a packaged build
-    first, then PATH (the normal dev-mode / brew-installed case)."""
+    first, then PATH (the normal dev-mode / brew-installed case).
+
+    PATH hits are returned exactly as `shutil.which` reports them, not
+    re-parsed through `Path` — that would renormalize separators and
+    mangle the string on Windows.
+    """
     bundled = app_dir() / "bin" / f"ffmpeg{exe_suffix()}"
     if bundled.exists():
         return bundled
-    on_path = shutil.which("ffmpeg")
-    return Path(on_path) if on_path else None
+    return shutil.which("ffmpeg")
 
 
 def check_ffmpeg_installed() -> bool:

@@ -41,15 +41,17 @@ def get_whisper_executable(config: Config = CONFIG) -> Path | None:
         return configured
     suffix = exe_suffix()
     for name in _CANDIDATE_BINARY_NAMES:
-        candidate = configured.parent / f"{name}{suffix}"
-        if candidate.exists():
-            return candidate
+        for candidate_name in {f"{name}{suffix}", name}:
+            candidate = configured.parent / candidate_name
+            if candidate.exists():
+                return candidate
 
     bundled_bin = app_dir() / "bin"
     for name in _CANDIDATE_BINARY_NAMES:
-        candidate = bundled_bin / f"{name}{suffix}"
-        if candidate.exists():
-            return candidate
+        for candidate_name in {f"{name}{suffix}", name}:
+            candidate = bundled_bin / candidate_name
+            if candidate.exists():
+                return candidate
     return None
 
 
