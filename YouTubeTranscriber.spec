@@ -29,6 +29,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 datas = [
     ("app.py", "."),
+    ("packaging/Run YouTubeTranscriber.bat", "."),
 ]
 binaries = []
 hiddenimports = []

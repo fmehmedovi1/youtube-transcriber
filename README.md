@@ -22,13 +22,20 @@ Don't want to run Python? Download the packaged Windows build from
 [GitHub Releases](../../releases):
 
 1. Download `YouTubeTranscriber-Windows-x64.zip`.
-2. Extract the ZIP.
-3. Open `YouTubeTranscriber.exe`.
+2. **Right-click the ZIP and choose "Extract All"** — do not open files
+   directly from the ZIP preview window; Windows only copies the one file
+   you click, not the folder it depends on, which breaks the app.
+3. In the extracted folder, open `Run YouTubeTranscriber.bat`.
 4. Your browser opens automatically at `http://127.0.0.1:8501`.
 5. Paste a YouTube URL and generate a transcript.
 
 No Python, no `pip install`, no `streamlit run` — the executable starts
 the app internally and only listens on `127.0.0.1` (never your network).
+
+`Run YouTubeTranscriber.bat` checks that the app's files are actually
+present before launching `YouTubeTranscriber.exe`, and shows a plain-English
+message if the ZIP wasn't extracted, instead of the app crashing with a raw
+Windows DLL error.
 
 If this repository has no published release yet, the
 [`build-windows`](.github/workflows/build-windows.yml) GitHub Actions
@@ -289,6 +296,13 @@ distribution requirement. If SmartScreen appears, click "More info" ->
 "Run anyway". This is standard for unsigned open-source Windows binaries
 and is not a sign the app was tampered with — verify by building it
 yourself from source with `scripts\build_windows.ps1` if in doubt.
+
+**"Failed to load Python DLL" / `python312.dll` not found** — the ZIP was
+run from without extracting first (opening a file straight from the ZIP
+preview window only copies that one file, not the `_internal` folder next
+to it). Extract the ZIP fully ("Extract All"), then run
+`Run YouTubeTranscriber.bat` from the extracted folder. That launcher
+checks for this and shows a clear message before it can happen again.
 
 **ffmpeg missing** — `brew install ffmpeg` (macOS), your distro's package
 manager on Linux, or `scripts\setup_whisper.ps1` / `winget install ffmpeg`
