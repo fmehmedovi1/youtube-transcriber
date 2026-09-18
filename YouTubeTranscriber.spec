@@ -31,7 +31,17 @@ _internal/, not next to the .exe, so the build scripts
 into the dist folder root themselves after this spec runs.
 """
 
+import sys
+
 from PyInstaller.utils.hooks import collect_all, collect_submodules
+
+# PyInstaller does not put the spec file's own directory on sys.path before
+# executing it, so `collect_submodules("src.youtube_transcriber")` below
+# would silently fail to even import the "src" package (collect_submodules
+# swallows that failure and returns [] with no warning — see
+# https://github.com/pyinstaller/pyinstaller collect_submodules source).
+# That's a plain Python import, unrelated to Analysis()'s own `pathex`.
+sys.path.insert(0, SPECPATH)
 
 datas = [
     ("app.py", "."),
